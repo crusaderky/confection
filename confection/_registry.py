@@ -268,7 +268,11 @@ class registry:
                 )
             elif field.annotation is None:
                 fields[name] = (Any, Field(field.default))
-            elif issubclass(field.annotation, BaseModel):
+            elif (
+                # isinstance check needed on Python 3.10
+                isinstance(field.annotation, type)
+                and issubclass(field.annotation, BaseModel)
+            ):
                 fields[name] = cls._make_unresolved_schema(
                     field.annotation, config[name]
                 )
