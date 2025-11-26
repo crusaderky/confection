@@ -1,16 +1,9 @@
 import functools
-import sys
 from copy import deepcopy
-from typing import Any, Callable, Iterator, TypeVar
+from typing import Any, Callable, Iterator, Protocol, TypeVar
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
-
-if sys.version_info < (3, 8):
-    # Ignoring type for mypy to avoid "Incompatible import" error (https://github.com/python/mypy/issues/4427).
-    from typing_extensions import Protocol  # type: ignore
-else:
-    from typing import Protocol
 
 _DIn = TypeVar("_DIn")
 
@@ -18,8 +11,7 @@ _DIn = TypeVar("_DIn")
 class Decorator(Protocol):
     """Protocol to mark a function as returning its child with identical signature."""
 
-    def __call__(self, name: str) -> Callable[[_DIn], _DIn]:
-        ...
+    def __call__(self, name: str) -> Callable[[_DIn], _DIn]: ...
 
 
 # This is how functools.partials seems to do it, too, to retain the return type

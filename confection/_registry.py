@@ -1,13 +1,12 @@
-import copy
 import inspect
-import json
 from dataclasses import dataclass
+from types import GeneratorType
 from typing import (
     Any,
     Callable,
     Dict,
+    ForwardRef,
     Generic,
-    Generator,
     List,
     Literal,
     Optional,
@@ -18,13 +17,10 @@ from typing import (
     Union,
     get_args,
     get_origin,
-    get_type_hints,
-    ForwardRef
 )
-from types import GeneratorType
 
 import catalogue
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
+from pydantic import BaseModel, Field, ValidationError, create_model
 from pydantic.fields import FieldInfo
 
 from ._config import (
@@ -36,7 +32,6 @@ from ._config import (
 )
 from ._errors import ConfigValidationError
 from .util import is_promise
-from . import util
 
 _PromisedType = TypeVar("_PromisedType")
 
@@ -83,7 +78,7 @@ class Promise(Generic[_PromisedType]):
             schema_args = dict(kwargs)
             if args:
                 schema_args[ARGS_FIELD] = args
-            #schema_args = _replace_generators(schema_args)
+            # schema_args = _replace_generators(schema_args)
             try:
                 kwargs = self.schema.model_validate(schema_args).model_dump()
             except ValidationError as e:
@@ -264,11 +259,13 @@ class registry:
     def _make_unresolved_schema(
         cls, schema: Type[BaseModel], config
     ) -> Type[BaseModel]:
-        """Make a single schema to validate against, representing data with promises unresolved.
+        """Make a single schema to validate against, representing data with promises
+        unresolved.
 
-        When the config provides a value via a promise, we build a schema for the arguments for the
-        function it references, and insert that into the schema. This subschema describes a dictionary
-        that would be valid to call the referenced function.
+        When the config provides a value via a promise, we build a schema for the
+        arguments for the function it references, and insert that into the schema. This
+        subschema describes a dictionary that would be valid to call the referenced
+        function.
         """
         if not schema.model_fields:
             schema = _make_dummy_schema(config)
@@ -297,7 +294,9 @@ class registry:
                 fields[name] = (Any, Field(field.default))
 
         model = create_model(
-            f"{schema.__name__}_UnresolvedConfig", __config__=schema.model_config, **fields
+            f"{schema.__name__}_UnresolvedConfig",
+            __config__=schema.model_config,
+            **fields,
         )
         model.model_rebuild(raise_errors=True)
         return model
@@ -334,7 +333,9 @@ class registry:
             "arbitrary_types_allowed": True,
             "alias_generator": alias_generator,
         }
-        return create_model(f"{reg_name} {func_name} model", __config__=model_config, **fields)  # type: ignore
+        return create_model(
+            f"{reg_name} {func_name} model", __config__=model_config, **fields
+        )  # type: ignore
 
 
 def _make_dummy_schema(config):
@@ -429,8 +430,8 @@ def remove_extra_keys(
 def insert_promises(
     registry, config: Dict[str, Dict[str, Any]], resolve: bool, validate: bool
 ) -> Dict[str, Dict[str, Any]]:
-    """Create a version of a config dict where promises are recognised and replaced by Promise
-    dataclasses
+    """Create a version of a config dict where promises are recognised and replaced by
+    Promise dataclasses
     """
     output = {}
     for key, value in config.items():
@@ -488,7 +489,10 @@ def fix_positionals(config):
 def fix_forward_refs(schema: Type[BaseModel]) -> Type[BaseModel]:
     fields = {}
     for name, field_info in schema.model_fields.items():
-        if isinstance(field_info.annotation, str) or field_info.annotation == ForwardRef:
+        if (
+            isinstance(field_info.annotation, str)
+            or field_info.annotation == ForwardRef
+        ):
             fields[name] = (Any, field_info)
         else:
             fields[name] = (field_info.annotation, field_info)
@@ -518,8 +522,8 @@ def apply_overrides(
 
 
 def _shallow_copy(obj):
-    """Ensure dict values in the config are new dicts, allowing assignment, without copying
-    leaf objects.
+    """Ensure dict values in the config are new dicts, allowing assignment, without
+    copying leaf objects.
     """
     if isinstance(obj, dict):
         return {k: _shallow_copy(v) for k, v in obj.items()}
@@ -536,7 +540,9 @@ def make_func_schema(func) -> Type[BaseModel]:
         "arbitrary_types_allowed": True,
         "alias_generator": alias_generator,
     }
-    return create_model(f"{func.__name__}_ArgModel", __config__=model_config, **fields)  # type: ignore
+    return create_model(
+        f"{func.__name__}_ArgModel", __config__=model_config, **fields
+    )  # type: ignore
 
 
 def get_func_fields(func) -> Dict[str, Tuple[Type, FieldInfo]]:
@@ -551,7 +557,7 @@ def get_func_fields(func) -> Dict[str, Tuple[Type, FieldInfo]]:
         # Handle spread arguments and use their annotation as Sequence[whatever]
         if param.kind == param.VAR_POSITIONAL:
             spread_annot = Sequence[annotation]  # type: ignore
-            sig_args[ARGS_FIELD_ALIAS] = (spread_annot, Field(default, ))
+            sig_args[ARGS_FIELD_ALIAS] = (spread_annot, Field(default))
         else:
             name = RESERVED_FIELDS.get(param.name, param.name)
             sig_args[name] = (annotation, Field(default))
